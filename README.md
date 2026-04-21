@@ -4,7 +4,7 @@
 
 MBG Smart Logistics adalah platform cerdas yang menggabungkan Laravel (Frontend/Admin), Golang (Core API), OSRM (Routing Engine), dan Gemini/Local AI (Intelligence) untuk memastikan pengiriman ransum makanan bergizi bagi anak sekolah tiba tepat waktu dengan kualitas gizi yang masih terjaga.
 
-![Use Case MBG Smart Logistics](USE%20CASE%20MBG%20SMART%20LOGISTICS.png)
+![Arsitektur Alur Sistem](USE%20CASE%20MBG%20SMART%20LOGISTICS.png)
 
 ---
 
