@@ -27,3 +27,4 @@ Thumbs.db
 /laravel-core/node_modules/
 /go-api/*.exe
 /go-api/go-api
+/go-api/.env

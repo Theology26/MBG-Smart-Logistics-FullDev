@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0b1120">
+  <title>MBG Kurir</title>
+  <meta name="description" content="Aplikasi kurir MBG Smart Logistics — pengiriman makanan bergizi ke sekolah">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="js/api.js"></script>
+  <style>
+    /* ── Courier-specific mobile overrides ── */
+    body { background: var(--bg-body); overscroll-behavior: none; }
+    body::before { display: none; } /* Remove bg mesh for performance */
+
+    .courier-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; margin-bottom: 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+    }
+    .courier-header .name { font-weight: 700; font-size: 1rem; }
+    .courier-header .route-id { font-size: 0.6875rem; color: var(--text-muted); }
+
+    .gps-indicator {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block; margin-right: 6px;
+    }
+    .gps-indicator.active { background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,0.6); animation: pulse 1.5s infinite; }
+    .gps-indicator.inactive { background: #6b7280; }
+
+    .progress-strip {
+      display: flex; gap: 3px; margin-bottom: 16px;
+    }
+    .progress-strip .seg {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: var(--bg-tertiary); transition: background 0.5s;
+    }
+    .progress-strip .seg.done { background: var(--emerald-400); }
+    .progress-strip .seg.current { background: var(--blue-400); animation: pulse 1.5s infinite; }
+
+    .stop-card {
+      padding: 16px; margin-bottom: 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 14px; transition: all 0.3s;
+    }
+    .stop-card.current {
+      border-color: var(--blue-500);
+      background: rgba(59, 130, 246, 0.05);
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.15);
+    }
+    .stop-card.done { opacity: 0.4; }
+
+    .stop-card .school-name {
+      font-weight: 700; font-size: 1rem; margin-bottom: 2px;
+    }
+    .stop-card .school-meta {
+      font-size: 0.8125rem; color: var(--text-muted);
+    }
+    .stop-card .eta-big {
+      font-size: 1.375rem; font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stop-num {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.875rem; flex-shrink: 0;
+      background: var(--bg-tertiary); color: var(--text-muted);
+    }
+    .stop-card.current .stop-num {
+      background: linear-gradient(135deg, var(--blue-500), var(--blue-700));
+      color: #fff;
+    }
+    .stop-card.done .stop-num {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+    }
+
+    /* Giant Drop-off Button */
+    .dropoff-btn {
+      width: 100%; padding: 22px;
+      border: none; border-radius: 16px;
+      font-family: inherit; font-size: 1.125rem;
+      font-weight: 900; text-transform: uppercase;
+      letter-spacing: 0.08em; cursor: pointer;
+      color: #fff; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #10b981, #059669);
+      box-shadow: 0 0 24px rgba(16,185,129,0.35);
+      transition: all 0.3s; -webkit-tap-highlight-color: transparent;
+    }
+    .dropoff-btn:active {
+      transform: scale(0.97);
+      box-shadow: 0 0 40px rgba(16,185,129,0.6);
+    }
+    .dropoff-btn:disabled {
+      background: var(--bg-tertiary); color: var(--text-muted);
+      box-shadow: none; cursor: not-allowed;
+    }
+    .dropoff-btn .ripple {
+      position: absolute; top: 50%; left: 50%;
+      width: 0; height: 0; background: rgba(255,255,255,0.25);
+      border-radius: 50%; transform: translate(-50%,-50%);
+    }
+    .dropoff-btn:active .ripple {
+      animation: rippleAnim 0.6s ease-out;
+    }
+
+    @keyframes rippleAnim {
+      to { width: 500px; height: 500px; opacity: 0; }
+    }
+
+    .bottom-dock {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom));
+      background: linear-gradient(to top, var(--bg-body) 60%, transparent);
+      z-index: 50;
+    }
+
+    .success-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.7); backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.3s ease;
+    }
+    .success-box {
+      text-align: center; padding: 40px;
+      background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="mobile-app" x-data="courierApp()" x-init="init()" style="padding-bottom: 100px;">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <div class="courier-header">
+    <div>
+      <div class="name">Kurir MBG</div>
+      <div class="route-id" x-text="routeId ? 'Rute: ' + routeId.slice(0,8) + '...' : 'Belum ada rute'"></div>
+    </div>
+    <div style="text-align: right;">
+      <div style="font-size: 0.75rem;">
+        <span class="gps-indicator" :class="gpsActive ? 'active' : 'inactive'"></span>
+        <span x-text="gpsActive ? 'GPS Aktif' : 'GPS Mati'" :style="'color:' + (gpsActive ? 'var(--emerald-400)' : 'var(--text-muted)')"></span>
+      </div>
+      <div style="font-size: 0.8125rem; font-weight: 700; margin-top: 2px;"
+        x-text="completedCount + '/' + totalStops + ' selesai'"></div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ PROGRESS STRIP ═══════════════════ -->
+  <div class="progress-strip">
+    <template x-for="(stop, idx) in stops" :key="idx">
+      <div class="seg" :class="{
+        'done': stop.status === 'delivered',
+        'current': stop.status === 'pending' && idx === currentStopIndex
+      }"></div>
+    </template>
+  </div>
+
+  <!-- ═══════════════════ NO ROUTE STATE ═══════════════════ -->
+  <template x-if="!routeId">
+    <div style="text-align: center; padding: 60px 20px;">
+      <div style="margin: 0 auto 16px; width: 56px; height: 56px;"><svg viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="56" height="56"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
+      <h2 style="margin-bottom: 8px;">Menunggu Rute</h2>
+      <p class="text-muted">Rute pengiriman akan muncul otomatis setelah admin dapur mengirimkan jadwal.</p>
+      <button class="btn btn-ghost" style="margin-top: 20px;" @click="loadMyRoute()">🔄 Cek Ulang</button>
+    </div>
+  </template>
+
+  <!-- ═══════════════════ STOP LIST ═══════════════════ -->
+  <template x-if="routeId">
+    <div>
+      <!-- Deadline Warning -->
+      <template x-if="deadline && minutesFromNow(deadline) < 30">
+        <div class="alert alert-danger" style="margin-bottom: 12px; padding: 10px 12px; font-size: 0.8125rem;">
+          <span class="alert-icon">🚨</span>
+          <div class="alert-content">
+            Deadline makanan: <strong x-text="formatTime(deadline)"></strong>
+            — sisa <strong x-text="minutesFromNow(deadline)"></strong> menit!
+          </div>
+        </div>
+      </template>
+
+      <template x-for="(stop, idx) in stops" :key="stop.id">
+        <div class="stop-card" :class="{
+          'current': idx === currentStopIndex && stop.status === 'pending',
+          'done': stop.status === 'delivered'
+        }">
+          <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <div class="stop-num" x-text="idx + 1"></div>
+            <div style="flex: 1; min-width: 0;">
+              <div class="school-name" x-text="stop.schoolName"></div>
+              <div class="school-meta" x-text="stop.area + ' · ' + stop.portions + ' porsi'"></div>
+            </div>
+            <div style="text-align: right; flex-shrink: 0;">
+              <template x-if="stop.status === 'delivered'">
+                <span style="color: var(--emerald-400); font-weight: 600; font-size: 0.8125rem;">✓ Selesai</span>
+              </template>
+              <template x-if="stop.status === 'pending'">
+                <div>
+                  <div class="eta-big" :class="stop.isAtRisk ? 'text-rose' : 'text-accent'"
+                    x-text="formatTime(stop.dynamicETA)"></div>
+                  <div class="school-meta" x-text="'~ ' + minutesFromNow(stop.dynamicETA) + ' mnt'"></div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- ═══════════════════ SUCCESS OVERLAY ═══════════════════ -->
+  <template x-if="showSuccess">
+    <div class="success-overlay" @click="showSuccess = false">
+      <div class="success-box">
+        <div style="font-size: 4rem; margin-bottom: 12px;">✅</div>
+        <h2 style="margin-bottom: 4px;">Drop-off Selesai!</h2>
+        <p class="text-muted" x-text="lastCompletedSchool"></p>
+        <p class="text-emerald" style="margin-top: 8px; font-size: 0.875rem;">ETA sekolah berikutnya diperbarui</p>
+      </div>
+    </div>
+  </template>
+
+  <!-- ═══════════════════ BOTTOM: GIANT BUTTON ═══════════════════ -->
+  <template x-if="routeId && currentStop">
+    <div class="bottom-dock">
+      <div style="text-align: center; margin-bottom: 10px; font-size: 0.8125rem; color: var(--text-muted);">
+        Tujuan saat ini: <strong style="color: var(--text-primary);" x-text="currentStop.schoolName"></strong>
+      </div>
+      <button class="dropoff-btn" @click="completeDropoff()" :disabled="completing">
+        <div class="ripple"></div>
+        <template x-if="completing">
+          <span>⏳ Memproses...</span>
+        </template>
+        <template x-if="!completing">
+          <span>✅ SELESAI DROP-OFF</span>
+        </template>
+      </button>
+    </div>
+  </template>
+
+  <!-- All Done State -->
+  <template x-if="routeId && !currentStop && completedCount === totalStops && totalStops > 0">
+    <div class="bottom-dock">
+      <div style="text-align: center; padding: 12px; background: rgba(16,185,129,0.1); border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+        <div style="font-size: 2rem;">🎉</div>
+        <p style="font-weight: 700; color: var(--emerald-400);">Semua Pengiriman Selesai!</p>
+      </div>
+    </div>
+  </template>
+
+</div>
+
+<script>
+function courierApp() {
+  return {
+    routeId: null,
+    routePlanId: null,
+    courierId: null,
+    stops: [],
+    deadline: null,
+    gpsActive: false,
+    gpsWatchId: null,
+    currentPosition: null,
+    completing: false,
+    showSuccess: false,
+    lastCompletedSchool: '',
+    locationInterval: null,
+
+    get totalStops() { return this.stops.length; },
+    get completedCount() { return this.stops.filter(s => s.status === 'delivered').length; },
+    get currentStopIndex() { return this.stops.findIndex(s => s.status === 'pending'); },
+    get currentStop() { return this.stops[this.currentStopIndex] || null; },
+
+    async init() {
+      // Start GPS tracking
+      this.startGPS();
+      // Try loading route
+      await this.loadMyRoute();
+    },
+
+    startGPS() {
+      // Use watchPosition for continuous GPS (battery-efficient on modern browsers)
+      this.gpsWatchId = GPS.watchPosition((pos) => {
+        this.gpsActive = true;
+        this.currentPosition = pos;
+      });
+
+      // If watchPosition fails, fall back to polling
+      if (!this.gpsWatchId) {
+        this.locationInterval = setInterval(async () => {
+          try {
+            this.currentPosition = await GPS.getCurrentPosition();
+            this.gpsActive = true;
+          } catch (e) {
+            this.gpsActive = false;
+          }
+        }, 15000); // Poll every 15s to save battery
+      }
+    },
+
+    async loadMyRoute() {
+      // In production, this would filter by courier's auth token
+      // For now, load the first active route
+      const prods = await API.getActiveProductions();
+      if (!prods.data || prods.data.length === 0) return;
+
+      for (const prod of prods.data) {
+        const plans = await API.getRoutePlans(prod.id);
+        if (plans.data && plans.data.length > 0) {
+          const plan = plans.data[0]; // First route
+          this.routeId = plan.id;
+          this.routePlanId = plan.id;
+          this.courierId = plan.courier_id;
+          this.deadline = prod.deadline_at;
+
+          this.stops = (plan.stops || []).map(s => {
+            const school = s.school_assignment?.school;
+            const minsToDeadline = s.dynamic_eta
+              ? (new Date(prod.deadline_at) - new Date(s.dynamic_eta)) / 60000 : 999;
+
+            return {
+              id: s.id,
+              schoolName: school?.name || 'Sekolah',
+              area: school?.area || '',
+              lat: school?.latitude,
+              lng: school?.longitude,
+              portions: s.portions_to_deliver,
+              status: s.status,
+              dynamicETA: s.dynamic_eta || s.estimated_arrival,
+              isAtRisk: minsToDeadline < 15
+            };
+          });
+          return; // Found a route, stop looking
+        }
+      }
+    },
+
+    async completeDropoff() {
+      const stop = this.currentStop;
+      if (!stop || this.completing) return;
+
+      this.completing = true;
+
+      // Step 1: Get fresh GPS coordinates
+      let gpsCoords = this.currentPosition;
+      if (!gpsCoords) {
+        try {
+          gpsCoords = await GPS.getCurrentPosition();
+        } catch (e) {
+          console.warn('[COURIER] GPS unavailable:', e);
+        }
+      }
+
+      // Step 2: Send GPS location to backend
+      if (gpsCoords && this.routePlanId && this.courierId) {
+        await API.updateLocation(
+          this.routePlanId, this.courierId,
+          gpsCoords.lat, gpsCoords.lng,
+          gpsCoords.speed, gpsCoords.heading, gpsCoords.accuracy
+        );
+      }
+
+      // Step 3: Complete the stop (triggers Dynamic ETA recalculation)
+      const result = await API.completeStop(stop.id, stop.portions);
+
+      this.completing = false;
+
+      if (result.status === 200) {
+        // Mark stop as delivered locally (instant UI feedback)
+        stop.status = 'delivered';
+        this.lastCompletedSchool = stop.schoolName;
+        this.showSuccess = true;
+
+        // Auto-hide success overlay after 2 seconds
+        setTimeout(() => { this.showSuccess = false; }, 2000);
+
+        // Update ETAs from server response if available
+        const etaData = result.data?.eta_recalculation;
+        if (etaData?.updates) {
+          etaData.updates.forEach(update => {
+            const localStop = this.stops.find(s => s.id === update.stop_id);
+            if (localStop) {
+              localStop.dynamicETA = update.new_eta;
+              localStop.isAtRisk = update.is_at_risk;
+            }
+          });
+        }
+
+        // Haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(200);
+      }
+    },
+
+    formatTime(iso) { return formatTime(iso); },
+    minutesFromNow(iso) { return minutesFromNow(iso); },
+
+    // Cleanup on page destroy
+    destroy() {
+      GPS.clearWatch(this.gpsWatchId);
+      if (this.locationInterval) clearInterval(this.locationInterval);
+    }
+  };
+}
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

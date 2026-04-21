@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MBG Smart Logistics — Monitoring Guru</title>
+  <meta name="description" content="Dashboard monitoring real-time untuk guru: peta kurir, ETA dinamis, dan status pengiriman per sekolah">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="js/api.js"></script>
+  <style>
+    .monitor-layout { display: grid; grid-template-columns: 1fr 380px; gap: 20px; height: calc(100vh - 140px); }
+    @media (max-width: 900px) { .monitor-layout { grid-template-columns: 1fr; height: auto; } }
+    .map-wrap { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--bg-glass-border); min-height: 400px; }
+    .eta-sidebar { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: calc(100vh - 140px); }
+    .leaflet-popup-content-wrapper { background: #1f2937; color: #f9fafb; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+    .leaflet-popup-tip { background: #1f2937; }
+    .leaflet-popup-content { margin: 12px 16px; font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.5; }
+    .eta-school-row { padding: 14px 16px; border-radius: var(--radius-md); background: var(--bg-card); border: 1px solid var(--bg-glass-border); transition: all 0.3s; cursor: pointer; }
+    .eta-school-row:hover { background: var(--bg-card-hover); }
+    .eta-school-row.at-risk { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.06); animation: alertPulse 2s infinite; }
+    .eta-school-row.delivered { opacity: 0.5; border-color: rgba(16,185,129,0.3); }
+    .blink { animation: etaBlink 0.6s ease-in-out 3; }
+  </style>
+</head>
+<body>
+<div class="app-container full-width" x-data="monitorApp()" x-init="init()">
+
+  <!-- ═══════════════════ HEADER ═══════════════════ -->
+  <header class="app-header">
+    <a href="#" class="logo">
+      <div class="logo-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49"/><path d="M7.76 16.24a6 6 0 010-8.49"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M4.93 19.07a10 10 0 010-14.14"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">MBG Smart Logistics</div>
+        <div class="logo-sub">Monitoring Guru — Real-time</div>
+      </div>
+    </a>
+    <div class="flex-row" style="gap: 16px;">
+      <!-- Route Selector -->
+      <select class="form-select" style="width: 220px; padding: 8px 12px; font-size: 0.8125rem;"
+        x-model="selectedRouteId" @change="loadRoute()">
+        <option value="">-- Pilih Rute Aktif --</option>
+        <template x-for="r in availableRoutes" :key="r.id">
+          <option :value="r.id" x-text="'Rute ' + r.id.slice(0,8) + ' (' + r.total_stops + ' stop)'"></option>
+        </template>
+      </select>
+      <span class="header-badge badge-monitor" x-text="connected ? '🟢 LIVE' : '🔴 OFFLINE'"></span>
+    </div>
+  </header>
+
+  <!-- ═══════════════════ STATS BAR ═══════════════════ -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+    <div class="glass-card" style="padding: 16px; text-align: center;">
+      <div class="stat-value text-accent" x-text="stats.totalStops">0</div>
+      <div class="stat-label">Total Sekolah</div>
+    </div>
+    <div class="glass-card" style="padding: 16px; text-align: center;">
+      <div class="stat-value text-emerald" x-text="stats.delivered">0</div>
+      <div class="stat-label">Selesai</div>
+    </div>
+    <div class="glass-card" style="padding: 16px; text-align: center;">
+      <div class="stat-value text-sky" x-text="stats.inTransit">0</div>
+      <div class="stat-label">Dalam Perjalanan</div>
+    </div>
+    <div class="glass-card" style="padding: 16px; text-align: center;">
+      <div class="stat-value" :class="stats.atRisk > 0 ? 'text-rose' : 'text-emerald'" x-text="stats.atRisk">0</div>
+      <div class="stat-label">Terancam Telat</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════ MAIN LAYOUT: MAP + SIDEBAR ═══════════════════ -->
+  <div class="monitor-layout">
+    
+    <!-- LEFT: Leaflet Map -->
+    <div class="map-wrap">
+      <div id="map" style="width: 100%; height: 100%; min-height: 400px;"></div>
+    </div>
+
+    <!-- RIGHT: Dynamic ETA Sidebar -->
+    <div class="eta-sidebar">
+      <div class="flex-between" style="padding: 0 4px;">
+        <h3>📋 Urutan Pengiriman</h3>
+        <button class="btn btn-ghost btn-sm" @click="refreshETA()" :disabled="refreshing">
+          <template x-if="refreshing"><span class="spinner" style="width:14px;height:14px;"></span></template>
+          <span x-text="refreshing ? '' : '🔄'"></span>
+        </button>
+      </div>
+
+      <!-- Deadline Warning -->
+      <template x-if="deadline">
+        <div class="alert alert-warning" style="padding: 10px 12px; font-size: 0.8125rem;">
+          <span class="alert-icon">⏰</span>
+          <div class="alert-content">
+            <span>Deadline Makanan: <strong x-text="formatTime(deadline)"></strong></span>
+            <span class="text-muted" x-text="' (sisa ' + minutesFromNow(deadline) + ' menit)'"></span>
+          </div>
+        </div>
+      </template>
+
+      <!-- School ETA List -->
+      <template x-for="stop in stops" :key="stop.id">
+        <div class="eta-school-row"
+          :class="{
+            'at-risk': stop.isAtRisk,
+            'delivered': stop.status === 'delivered'
+          }"
+          @click="focusOnSchool(stop)">
+          
+          <div class="flex-between" style="margin-bottom: 6px;">
+            <div class="flex-row" style="gap: 10px;">
+              <div class="stop-sequence" :class="{'active': stop.status === 'pending' && stop.isNext}" style="width: 28px; height: 28px; font-size: 0.75rem;"
+                x-text="stop.sequence">
+              </div>
+              <div>
+                <div style="font-weight: 600; font-size: 0.875rem;" x-text="stop.schoolName"></div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);" x-text="stop.area + ' · ' + stop.portions + ' porsi'"></div>
+              </div>
+            </div>
+
+            <!-- Status Badge -->
+            <div style="text-align: right;">
+              <template x-if="stop.status === 'delivered'">
+                <span class="status-badge safe">✓ Selesai</span>
+              </template>
+              <template x-if="stop.status === 'pending' && !stop.isAtRisk">
+                <span class="status-badge moderate">Menuju</span>
+              </template>
+              <template x-if="stop.status === 'pending' && stop.isAtRisk">
+                <span class="status-badge critical">⚠ TERANCAM</span>
+              </template>
+            </div>
+          </div>
+
+          <!-- ETA Display -->
+          <template x-if="stop.status === 'pending'">
+            <div class="flex-between" style="padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06);">
+              <span class="eta-countdown" x-text="'Estimasi tiba:'"></span>
+              <span class="eta-display" :class="{'blink': stop.etaUpdated, 'text-rose': stop.isAtRisk}"
+                style="font-size: 1.125rem;"
+                x-text="formatTime(stop.dynamicETA)"
+                x-effect="if(stop.etaUpdated) setTimeout(() => stop.etaUpdated = false, 2000)">
+              </span>
+            </div>
+          </template>
+
+          <template x-if="stop.status === 'delivered'">
+            <div style="padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 0.75rem; color: var(--emerald-400);">
+              Tiba: <span x-text="formatTime(stop.actualArrival)"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="stops.length === 0">
+        <div style="text-align: center; padding: 40px 16px; color: var(--text-muted);">
+          <div style="margin: 0 auto 8px; width: 40px; height: 40px;"><svg viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="40" height="40"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+          <p>Pilih rute aktif untuk memulai monitoring</p>
+        </div>
+      </template>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function monitorApp() {
+  return {
+    map: null,
+    selectedRouteId: '',
+    availableRoutes: [],
+    stops: [],
+    deadline: null,
+    connected: false,
+    refreshing: false,
+    pollInterval: null,
+    courierMarker: null,
+    schoolMarkers: [],
+    routeLine: null,
+
+    stats: { totalStops: 0, delivered: 0, inTransit: 0, atRisk: 0 },
+
+    async init() {
+      // Initialize Leaflet map centered on Malang
+      this.map = L.map('map', {
+        zoomControl: false
+      }).setView([-7.9750, 112.6340], 13);
+
+      L.control.zoom({ position: 'bottomright' }).addTo(this.map);
+
+      // Dark map tiles (CartoDB Dark Matter)
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© CartoDB | © OSM',
+        maxZoom: 19
+      }).addTo(this.map);
+
+      // Load available routes
+      const prods = await API.getActiveProductions();
+      if (prods.data) {
+        for (const prod of prods.data) {
+          const plans = await API.getRoutePlans(prod.id);
+          if (plans.data) {
+            this.availableRoutes.push(...plans.data.map(p => ({
+              ...p, dishName: prod.dish_name, deadline: prod.deadline_at
+            })));
+          }
+        }
+      }
+      this.connected = true;
+    },
+
+    async loadRoute() {
+      if (!this.selectedRouteId) return;
+
+      // Clear existing markers
+      this.schoolMarkers.forEach(m => this.map.removeLayer(m));
+      this.schoolMarkers = [];
+      if (this.routeLine) this.map.removeLayer(this.routeLine);
+      if (this.courierMarker) this.map.removeLayer(this.courierMarker);
+
+      // Load tracking data
+      const result = await API.getTracking(this.selectedRouteId);
+      if (!result.data) return;
+
+      const plan = result.data.route_plan;
+      const tracks = result.data.tracking;
+
+      // Set deadline from route's production
+      const route = this.availableRoutes.find(r => r.id === this.selectedRouteId);
+      if (route) this.deadline = route.deadline;
+
+      // Build stops list for sidebar
+      this.stops = (plan.stops || []).map((s, idx) => {
+        const school = s.school_assignment?.school;
+        const isAtRisk = s.dynamic_eta && new Date(s.dynamic_eta) > new Date(this.deadline);
+        const minsToDeadline = s.dynamic_eta ? (new Date(this.deadline) - new Date(s.dynamic_eta)) / 60000 : 999;
+
+        return {
+          id: s.id,
+          sequence: s.stop_sequence,
+          schoolName: school?.name || 'Unknown',
+          area: school?.area || '',
+          lat: school?.latitude,
+          lng: school?.longitude,
+          portions: s.portions_to_deliver,
+          status: s.status,
+          estimatedArrival: s.estimated_arrival,
+          dynamicETA: s.dynamic_eta || s.estimated_arrival,
+          actualArrival: s.actual_arrival,
+          isAtRisk: isAtRisk || minsToDeadline < 15,
+          isNext: s.status === 'pending' && idx === (plan.stops || []).findIndex(st => st.status === 'pending'),
+          etaUpdated: false
+        };
+      });
+
+      // Update stats
+      this.stats.totalStops = this.stops.length;
+      this.stats.delivered = this.stops.filter(s => s.status === 'delivered').length;
+      this.stats.inTransit = this.stops.filter(s => s.status === 'pending').length;
+      this.stats.atRisk = this.stops.filter(s => s.isAtRisk && s.status === 'pending').length;
+
+      // Add school markers to map
+      const coords = [];
+      this.stops.forEach(stop => {
+        if (!stop.lat || !stop.lng) return;
+
+        const color = stop.status === 'delivered' ? '#10b981'
+          : stop.isAtRisk ? '#ef4444' : '#3b82f6';
+
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="
+            width:32px; height:32px; border-radius:50%;
+            background:${color}; color:#fff; font-weight:800;
+            display:flex; align-items:center; justify-content:center;
+            font-size:13px; font-family:Inter,sans-serif;
+            border:3px solid rgba(255,255,255,0.3);
+            box-shadow: 0 0 12px ${color}66;
+          ">${stop.sequence}</div>`,
+          iconSize: [32, 32], iconAnchor: [16, 16]
+        });
+
+        const marker = L.marker([stop.lat, stop.lng], { icon })
+          .bindPopup(`
+            <strong>${stop.schoolName}</strong><br>
+            ${stop.area} · ${stop.portions} porsi<br>
+            <span style="color:${color}">ETA: ${formatTime(stop.dynamicETA)}</span>
+          `)
+          .addTo(this.map);
+
+        this.schoolMarkers.push(marker);
+        coords.push([stop.lat, stop.lng]);
+      });
+
+      // Draw route polyline
+      if (coords.length >= 2) {
+        this.routeLine = L.polyline(coords, {
+          color: '#3b82f6', weight: 3, opacity: 0.7,
+          dashArray: '8, 12', lineCap: 'round'
+        }).addTo(this.map);
+        this.map.fitBounds(this.routeLine.getBounds().pad(0.15));
+      }
+
+      // Add courier marker from latest tracking
+      if (tracks && tracks.length > 0) {
+        const latest = tracks[0];
+        const courierIcon = L.divIcon({
+          className: '',
+          html: `<div style="
+            width:40px; height:40px; border-radius:50%;
+            background: linear-gradient(135deg, #0ea5e9, #0284c7);
+            color:#fff; font-size:20px;
+            display:flex; align-items:center; justify-content:center;
+            border:3px solid rgba(255,255,255,0.4);
+            box-shadow: 0 0 20px rgba(14,165,233,0.5);
+            animation: pulse 1.5s infinite;
+          ">🛵</div>`,
+          iconSize: [40, 40], iconAnchor: [20, 20]
+        });
+
+        this.courierMarker = L.marker([latest.latitude, latest.longitude], { icon: courierIcon })
+          .bindPopup(`<strong>Kurir</strong><br>Speed: ${latest.speed_kmh?.toFixed(1) || '?'} km/h`)
+          .addTo(this.map);
+      }
+
+      // Start polling for updates
+      this.startPolling();
+    },
+
+    async refreshETA() {
+      this.refreshing = true;
+      await this.loadRoute();
+      // Mark all pending stops as "updated" to trigger blink animation
+      this.stops.forEach(s => { if (s.status === 'pending') s.etaUpdated = true; });
+      this.refreshing = false;
+    },
+
+    startPolling() {
+      if (this.pollInterval) clearInterval(this.pollInterval);
+      // Poll every 15 seconds for ETA updates
+      this.pollInterval = setInterval(() => this.refreshETA(), 15000);
+    },
+
+    focusOnSchool(stop) {
+      if (stop.lat && stop.lng) {
+        this.map.flyTo([stop.lat, stop.lng], 16, { duration: 0.8 });
+      }
+    },
+
+    formatTime(iso) { return formatTime(iso); },
+    minutesFromNow(iso) { return minutesFromNow(iso); }
+  };
+}
+</script>
+</body>
+</html>

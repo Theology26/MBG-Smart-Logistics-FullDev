@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MBG Smart Logistics — Portal</title>
+  <meta name="description" content="Portal utama MBG Smart Logistics: sistem cerdas pengiriman makanan bergizi gratis ke sekolah di Kota Malang">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .portal-hero {
+      text-align: center;
+      padding: 80px 20px 40px;
+    }
+    .portal-hero h1 {
+      font-size: 2.5rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--blue-300), var(--blue-500), var(--sky-400));
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .portal-hero p {
+      font-size: 1.0625rem;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .portal-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+    @media (max-width: 768px) {
+      .portal-cards { grid-template-columns: 1fr; }
+      .portal-hero h1 { font-size: 1.75rem; }
+    }
+    .portal-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--bg-glass-border);
+      border-radius: var(--radius-xl);
+      padding: 40px 28px;
+      text-align: center;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: var(--transition-smooth);
+      position: relative;
+      overflow: hidden;
+    }
+    .portal-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      border-radius: 20px 20px 0 0;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+    .portal-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(148, 163, 184, 0.2);
+      box-shadow: var(--shadow-elevated);
+    }
+    .portal-card:hover::before { opacity: 1; }
+    .portal-card.kitchen::before { background: linear-gradient(90deg, var(--blue-500), var(--blue-400)); }
+    .portal-card.monitor::before { background: linear-gradient(90deg, var(--sky-500), var(--blue-400)); }
+    .portal-card.courier::before { background: linear-gradient(90deg, var(--emerald-500), var(--emerald-400)); }
+
+    .portal-card .card-icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .portal-card .card-icon svg {
+      width: 32px;
+      height: 32px;
+    }
+    .portal-card.kitchen .card-icon {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+    .portal-card.kitchen .card-icon svg { color: var(--blue-400); }
+    .portal-card.monitor .card-icon {
+      background: rgba(14, 165, 233, 0.12);
+      border: 1px solid rgba(14, 165, 233, 0.2);
+    }
+    .portal-card.monitor .card-icon svg { color: var(--sky-400); }
+    .portal-card.courier .card-icon {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    .portal-card.courier .card-icon svg { color: var(--emerald-400); }
+
+    .portal-card h2 {
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+    }
+    .portal-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .portal-card .enter-btn {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 24px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 0.8125rem;
+      transition: all 0.3s;
+    }
+    .portal-card.kitchen .enter-btn { background: rgba(59, 130, 246, 0.12); color: var(--blue-400); }
+    .portal-card.monitor .enter-btn { background: rgba(14, 165, 233, 0.12); color: var(--sky-400); }
+    .portal-card.courier .enter-btn { background: rgba(16, 185, 129, 0.12); color: var(--emerald-400); }
+
+    .tech-badges {
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 50px; padding-bottom: 40px;
+    }
+    .tech-badge {
+      padding: 6px 14px; border-radius: 20px; font-size: 0.6875rem;
+      font-weight: 500; background: rgba(255,255,255,0.04);
+      border: 1px solid var(--bg-glass-border); color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+<div style="position: relative; z-index: 1;">
+
+  <div class="portal-hero">
+    <div style="margin-bottom: 16px;">
+      <!-- Logo icon: simple box with checkmark -->
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style="margin: 0 auto;">
+        <rect x="4" y="4" width="48" height="48" rx="14" fill="rgba(59,130,246,0.12)" stroke="rgba(59,130,246,0.3)" stroke-width="1.5"/>
+        <path d="M18 28L24 34L38 20" stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 38H42" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+      </svg>
+    </div>
+    <h1>MBG Smart Logistics</h1>
+    <p>Sistem cerdas pengiriman Makanan Bergizi Gratis ke sekolah-sekolah di Kota Malang — didukung AI Agent, OSRM, dan Gemini Vision.</p>
+  </div>
+
+  <div class="portal-cards">
+
+    <a href="kitchen.html" class="portal-card kitchen">
+      <div class="card-icon">
+        <!-- Kitchen icon: pot/pan -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11h18v2a6 6 0 01-6 6H9a6 6 0 01-6-6v-2z"/>
+          <path d="M3 11c0-2.5 2-4 4-4"/>
+          <path d="M12 3v4"/>
+          <path d="M8 5v2"/>
+          <path d="M16 5v2"/>
+        </svg>
+      </div>
+      <h2>Dashboard Dapur</h2>
+      <p>Input masakan matang, scan nota belanja dengan AI OCR, dan analisis Shelf-Life otomatis.</p>
+      <span class="enter-btn">Masuk →</span>
+    </a>
+
+    <a href="monitor.html" class="portal-card monitor">
+      <div class="card-icon">
+        <!-- Monitor icon: signal/radar -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M16.24 7.76a6 6 0 010 8.49"/>
+          <path d="M7.76 16.24a6 6 0 010-8.49"/>
+          <path d="M19.07 4.93a10 10 0 010 14.14"/>
+          <path d="M4.93 19.07a10 10 0 010-14.14"/>
+        </svg>
+      </div>
+      <h2>Monitoring Guru</h2>
+      <p>Peta real-time posisi kurir, Dynamic ETA per sekolah, dan peringatan keterlambatan.</p>
+      <span class="enter-btn">Masuk →</span>
+    </a>
+
+    <a href="courier.html" class="portal-card courier">
+      <div class="card-icon">
+        <!-- Courier icon: simple truck/delivery -->
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="3" width="15" height="13" rx="2"/>
+          <path d="M16 8h4l3 3v5h-7V8z"/>
+          <circle cx="5.5" cy="18.5" r="2.5"/>
+          <circle cx="18.5" cy="18.5" r="2.5"/>
+        </svg>
+      </div>
+      <h2>Aplikasi Kurir</h2>
+      <p>Daftar urutan sekolah, tombol Drop-off dengan GPS otomatis, dan update ETA real-time.</p>
+      <span class="enter-btn">Masuk →</span>
+    </a>
+
+  </div>
+
+  <div class="tech-badges">
+    <span class="tech-badge">Golang + Gin</span>
+    <span class="tech-badge">PostgreSQL</span>
+    <span class="tech-badge">OSRM Routing</span>
+    <span class="tech-badge">Gemini AI</span>
+    <span class="tech-badge">CVRPTW Solver</span>
+    <span class="tech-badge">Leaflet.js</span>
+    <span class="tech-badge">Alpine.js</span>
+    <span class="tech-badge">PWA</span>
+  </div>
+
+</div>
+</body>
+</html>

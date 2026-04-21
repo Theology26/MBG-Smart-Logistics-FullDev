@@ -1,0 +1,82 @@
+# ============================================================================
+# MBG Smart Logistics — Docker Compose (Local Development)
+# ============================================================================
+# Usage:
+#   1. First time: Run scripts/setup_osrm.ps1 to download & prepare map data
+#   2. Start:      podman compose up -d
+#   3. Stop:       podman compose down
+#   4. Reset DB:   podman compose down -v && podman compose up -d
+# ============================================================================
+
+services:
+  # ──────────────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Primary Database
+  # ──────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: mbg_postgres
+    environment:
+      POSTGRES_DB: mbg_smart_logistics
+      POSTGRES_USER: mbg_admin
+      POSTGRES_PASSWORD: mbg_secure_2026
+      TZ: Asia/Jakarta
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Auto-run migration on first startup
+      - ./go-api/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mbg_admin -d mbg_smart_logistics"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────────────────
+  # OSRM Backend — Local Routing Engine (East Java / Malang)
+  # ──────────────────────────────────────────────────────────────────────
+  # PREREQUISITE: Run scripts/setup_osrm.ps1 first to download & process
+  # the East Java OSM map data into OSRM format.
+  # ──────────────────────────────────────────────────────────────────────
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: mbg_osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./osrm-data:/data:ro
+    command: >
+      osrm-routed
+        --algorithm mld
+        --max-table-size 200
+        --port 5000
+        /data/east-java-latest.osrm
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ──────────────────────────────────────────────────────────────────────
+  # Redis 7 — Cache & Pub/Sub for Real-time Tracking
+  # ──────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mbg_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: mbg_postgres_data
+  redis_data:
+    name: mbg_redis_data

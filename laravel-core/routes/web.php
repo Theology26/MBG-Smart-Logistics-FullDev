@@ -1,11 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Models\Lokasi;
+use App\Http\Controllers\LogisticsAiController;
 
-Route::get('/', function () {
-    
-    $semua_lokasi = Lokasi::all();
-
-    return view('daftar_lokasi', compact('semua_lokasi'));
-});
+Route::get('/', [LogisticsAiController::class, 'index']);
+Route::post('/api/analyze-route', [LogisticsAiController::class, 'analyze']);
