@@ -39,6 +39,21 @@ Database menggunakan **PostgreSQL 16**.
 
 ---
 
+## 🔄 Alur Sistem (Sequence Diagram)
+
+Berikut adalah urutan alur kerja (*sequence diagram*) untuk fitur-fitur utama di MBG Smart Logistics:
+
+1. **Alur Dapur - Scan Nota Belanja (AI OCR)**
+![Sequence Diagram Dapur Scan Nota](SEQUENCE%20DIAGRAM%20DAPUR%20SCAN%20NOTA.png)
+
+2. **Alur Dapur - Produksi & Prediksi Ketahanan Makanan (AI Shelf-Life)**
+![Sequence Diagram Dapur Pilih Menu](SEQUENCE%20DIAGRAM%20DAPUR%20PILIH%20MENU.png)
+
+3. **Alur Kurir - Pengiriman & OSRM Routing**
+![Sequence Diagram Kurir](SEQUENCE%20DIAGRAM%20KURIR.png)
+
+---
+
 ## 📡 Dokumentasi Full REST API (Postman / cURL Ready)
 Golang Backend Server: `http://localhost:8080/api`
 
